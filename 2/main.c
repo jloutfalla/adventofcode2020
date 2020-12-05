@@ -17,11 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
 #include "../base.h"
-
-
-#define MAX_LINE 256
 
 int number_correct(FILE *file);
 int number_correct2(FILE *file);
@@ -48,7 +44,8 @@ main(int argc, char *argv[])
 }
 
 
-int number_correct(FILE *file)
+int
+number_correct(FILE *file)
 {
   char str[MAX_LINE];
   char *s;
@@ -84,7 +81,8 @@ int number_correct(FILE *file)
 }
 
 
-int number_correct2(FILE *file)
+int
+number_correct2(FILE *file)
 {
   char str[MAX_LINE];
   int num = 0;

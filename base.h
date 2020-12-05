@@ -43,4 +43,6 @@
 
 #define SIZE(X) (sizeof(X) / sizeof(X[0]))
 
+#define MAX_LINE 256
+
 #endif /* BASE_H */

@@ -19,11 +19,7 @@
 #include <string.h>
 #include <stdint.h>
 
-
 #include "../base.h"
-
-#define MAX_LINE 256
-
 
 #define PASSPORT_BYR 0x1
 #define PASSPORT_IYR 0x2
@@ -37,22 +33,63 @@
 #define PASSPORT_OK 0x7F
 #define PASSPORT_FULL 0xFF
 
+enum
+{
+  COND_NONE,
+  COND_RANGE,
+  COND_HEIGHT,
+  COND_COLOR,
+  COND_STR_RANGE,
+  COND_PID,
+};
+
+/* Range conditions */
+static const int birth_years[2]      = { 1920, 2002 };
+static const int issue_years[2]      = { 2010, 2020 };
+static const int expiration_years[2] = { 2020, 2030 };
+
+/* Height condition */
+static const int heights[2][2] = {
+  { 150, 193 },
+  { 59,  76  }
+};
+
+/* String range condition */
+static const char str_range[7][3] = {
+  "amb",
+  "blu",
+  "brn",
+  "gry",
+  "gnr",
+  "hzl",
+  "oth"
+};
+
 typedef struct
 {
   uint8_t type;
-  char code[4];
+  char code[3];
+  int condition;
+  const void *cond_val; 
 } passport_field;
 
-static passport_field pf[] = {
-  { PASSPORT_BYR, "byr" },
-  { PASSPORT_IYR, "iyr" },
-  { PASSPORT_EYR, "eyr" },
-  { PASSPORT_HGT, "hgt" },
-  { PASSPORT_HCL, "hcl" },
-  { PASSPORT_ECL, "ecl" },
-  { PASSPORT_PID, "pid" },
-  { PASSPORT_CID, "cid" },  
+static const passport_field pf[] = {
+  { PASSPORT_BYR, "byr", COND_RANGE,     birth_years      },
+  { PASSPORT_IYR, "iyr", COND_RANGE,     issue_years      },
+  { PASSPORT_EYR, "eyr", COND_RANGE,     expiration_years },
+  { PASSPORT_HGT, "hgt", COND_HEIGHT,    heights          },
+  { PASSPORT_HCL, "hcl", COND_COLOR,     NULL             },
+  { PASSPORT_ECL, "ecl", COND_STR_RANGE, str_range        },
+  { PASSPORT_PID, "pid", COND_PID,       NULL             },
+  { PASSPORT_CID, "cid", COND_NONE,      NULL             },
 };
+
+int cond_range(const char *str, const int *range);
+int cond_str_range(const char *str, const char **range);
+int cond_height(const char *str, const int **range);
+int cond_color(const char *str);
+int cond_pid(const char *str);
+
 
 int num_passport_correct_v1(FILE *file);
 int num_passport_correct_v2(FILE *file);
@@ -87,7 +124,7 @@ num_passport_correct_v1(FILE *file)
   char *token, *subtoken;
   char *saveptr1, *saveptr2;
   uint8_t passport = 0x0;
-  int i;
+  unsigned int i;
   
   int num = 0;
 
@@ -122,7 +159,7 @@ num_passport_correct_v1(FILE *file)
               if (subtoken == NULL)
                 break;
               
-              for (i = 0; i < 8; ++i)
+              for (i = 0; i < SIZE(pf); ++i)
                 if (strncmp(subtoken, pf[i].code, 3) == 0)
                   {
                     passport |= pf[i].type;
@@ -131,24 +168,24 @@ num_passport_correct_v1(FILE *file)
             }
         }
       
-      
       str[0] = '\0';
     }
 
-  
   return num;
 }
 
 
-int num_passport_correct_v2(FILE *file)
+int
+num_passport_correct_v2(FILE *file)
 {
   char str[MAX_LINE];
   char *cpy, *tmp1, *tmp2;
   char *token, *subtoken;
   char *saveptr1, *saveptr2;
   uint8_t passport = 0x0;
-  int i;
-  
+  int cond;
+  unsigned int i;
+    
   int num = 0;
 
   cpy = NULL;
@@ -189,19 +226,77 @@ int num_passport_correct_v2(FILE *file)
 
               fprintf(stderr, "\t subtoken : %s\n", subtoken);
               
-              for (i = 0; i < 8; ++i)
+              for (i = 0; i < SIZE(pf); ++i)
                 if (strncmp(subtoken, pf[i].code, 3) == 0)
                   {
-                    passport |= pf[i].type;
+                    cond = 0;
+
+                    switch (pf[i].condition)
+                      {
+                      case COND_RANGE:
+                        cond = cond_range(subtoken, (int *) pf[i].cond_val);
+                        break;
+
+                      case COND_HEIGHT:
+                        cond = cond_height(subtoken, (const int **) pf[i].cond_val);
+                        break;
+
+                      case COND_COLOR:
+                        cond = cond_color(subtoken);
+                        break;
+
+                      case COND_STR_RANGE:
+                        cond = cond_str_range(subtoken, (const char **) pf[i].cond_val);
+                        break;
+
+                      case COND_PID:
+                        cond = cond_pid(subtoken);
+                        break;
+                      }
+
+                    if (cond != 0)
+                      passport |= pf[i].type;
                     break;
                   }
             }
         }
-      
-      
+         
       str[0] = '\0';
     }
 
-  
   return num;
+}
+
+
+int
+cond_range(const char *str, const int *range)
+{
+  return 1; /* for compilation */
+}
+
+  
+int cond_str_range(const char *str, const char **range)
+{
+  return 1; /* for compilation */
+}
+
+
+int
+cond_height(const char *str, const int **heights)
+{
+  return 1; /* for compilation */
+}
+
+
+int
+cond_color(const char *str)
+{
+  return 1; /* for compilation */
+}
+
+
+int
+cond_pid(const char *str)
+{
+  return 1; /* for compilation */
 }

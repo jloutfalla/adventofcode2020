@@ -18,10 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 #include "../base.h"
-  
-#define MAX_LINE 256
 
 struct slope
 {
@@ -64,7 +61,9 @@ main(int argc, char *argv[])
   return 0;
 }
 
-int count_tree_slope(FILE *file, int offsetx, int offsety, char tree)
+
+int
+count_tree_slope(FILE *file, int offsetx, int offsety, char tree)
 {
   int length;
   int num = 0;
@@ -88,8 +87,7 @@ int count_tree_slope(FILE *file, int offsetx, int offsety, char tree)
         }
       
       str[0] = '\0';
-    }
-  
+    }  
 
   return num;
 }

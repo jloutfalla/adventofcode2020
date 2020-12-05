@@ -17,7 +17,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
 #include "../base.h"
 
 #define VAL 2020
