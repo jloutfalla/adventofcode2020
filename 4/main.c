@@ -18,6 +18,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <ctype.h>
+#include <errno.h>
 
 #include "../base.h"
 
@@ -60,10 +62,16 @@ static const char str_range[7][3] = {
   "blu",
   "brn",
   "gry",
-  "gnr",
+  "grn",
   "hzl",
   "oth"
 };
+
+/* Color condition */
+static const unsigned int color = 6;
+
+/* PID condition */
+static const unsigned int pid = 9;
 
 typedef struct
 {
@@ -77,18 +85,18 @@ static const passport_field pf[] = {
   { PASSPORT_BYR, "byr", COND_RANGE,     birth_years      },
   { PASSPORT_IYR, "iyr", COND_RANGE,     issue_years      },
   { PASSPORT_EYR, "eyr", COND_RANGE,     expiration_years },
-  { PASSPORT_HGT, "hgt", COND_HEIGHT,    heights          },
-  { PASSPORT_HCL, "hcl", COND_COLOR,     NULL             },
-  { PASSPORT_ECL, "ecl", COND_STR_RANGE, str_range        },
-  { PASSPORT_PID, "pid", COND_PID,       NULL             },
+  { PASSPORT_HGT, "hgt", COND_HEIGHT,    NULL             },
+  { PASSPORT_HCL, "hcl", COND_COLOR,     &color           },
+  { PASSPORT_ECL, "ecl", COND_STR_RANGE, NULL             },
+  { PASSPORT_PID, "pid", COND_PID,       &pid             },
   { PASSPORT_CID, "cid", COND_NONE,      NULL             },
 };
 
 int cond_range(const char *str, const int *range);
-int cond_str_range(const char *str, const char **range);
-int cond_height(const char *str, const int **range);
-int cond_color(const char *str);
-int cond_pid(const char *str);
+int cond_str_range(const char *str);
+int cond_height(const char *str);
+int cond_color(const char *str, unsigned int num);
+int cond_pid(const char *str, unsigned int num);
 
 
 int num_passport_correct_v1(FILE *file);
@@ -105,10 +113,10 @@ main(int argc, char *argv[])
   num = num_passport_correct_v1(file);
   printf("Num v1: %d\n", num);
 
-  /* fseek(file, 0, SEEK_SET); */
+  fseek(file, 0, SEEK_SET);
   
-  /* num = num_passport_correct_v2(file); */
-  /* printf("Num v2: %d\n", num); */
+  num = num_passport_correct_v2(file);
+  printf("Num v2: %d\n", num);
   
   CLOSE_FILE(file);
   
@@ -198,11 +206,9 @@ num_passport_correct_v2(FILE *file)
       
       if (*str == '\n' || *str == '\0')
         {
-          fprintf(stderr, "--------------------------- Passport : %X -- ", passport);
           if ((passport & PASSPORT_OK) == PASSPORT_OK)
             num++;
 
-          fprintf(stderr, "Num : %d ---------------------------\n\n", num);
           passport = 0x0;
           cpy = NULL;
           continue;
@@ -211,12 +217,9 @@ num_passport_correct_v2(FILE *file)
       cpy = strdup(str);
       for (tmp1 = cpy, token = NULL; ; tmp1 = NULL)
         {
-          fprintf(stderr, "  -- passport : %X\n", passport);
           token = strtok_r(tmp1, " ", &saveptr1);
           if (token == NULL)
             break;
-
-          fprintf(stderr, "Token : %s\n", token);
           
           for (tmp2 = token; ; tmp2 = NULL)
             {
@@ -224,11 +227,10 @@ num_passport_correct_v2(FILE *file)
               if (subtoken == NULL)
                 break;
 
-              fprintf(stderr, "\t subtoken : %s\n", subtoken);
-              
               for (i = 0; i < SIZE(pf); ++i)
                 if (strncmp(subtoken, pf[i].code, 3) == 0)
                   {
+                    subtoken = strtok_r(NULL, ":\n", &saveptr2);
                     cond = 0;
 
                     switch (pf[i].condition)
@@ -238,19 +240,23 @@ num_passport_correct_v2(FILE *file)
                         break;
 
                       case COND_HEIGHT:
-                        cond = cond_height(subtoken, (const int **) pf[i].cond_val);
+                        cond = cond_height(subtoken);
                         break;
 
                       case COND_COLOR:
-                        cond = cond_color(subtoken);
+                        cond = cond_color(subtoken, *((unsigned int*) pf[i].cond_val));
                         break;
 
                       case COND_STR_RANGE:
-                        cond = cond_str_range(subtoken, (const char **) pf[i].cond_val);
+                        cond = cond_str_range(subtoken);                        
                         break;
 
                       case COND_PID:
-                        cond = cond_pid(subtoken);
+                        cond = cond_pid(subtoken, *((unsigned int*) pf[i].cond_val));
+                        break;
+
+                      case COND_NONE:
+                        cond = 1;
                         break;
                       }
 
@@ -268,35 +274,81 @@ num_passport_correct_v2(FILE *file)
 }
 
 
-int
+inline int
 cond_range(const char *str, const int *range)
 {
-  return 1; /* for compilation */
+  char *end;
+  long int val;
+
+  errno = 0;
+  val = strtol(str, &end, 0);
+
+  if (errno == EINVAL || errno == ERANGE)
+    return 0;
+  
+  return (range[0] <= val && val <= range[1]);
 }
 
   
-int cond_str_range(const char *str, const char **range)
+inline int
+cond_str_range(const char *str)
 {
-  return 1; /* for compilation */
+  size_t i;
+
+  for (i = 0; i < SIZE(str_range); ++i)
+    if (strncmp(str, str_range[i], SIZE(str_range[i])) == 0)
+      return 1;
+  
+  return 0;
 }
 
 
-int
-cond_height(const char *str, const int **heights)
+inline int
+cond_height(const char *str)
 {
-  return 1; /* for compilation */
+  char *end;
+  long int height;
+
+  height = strtol(str, &end, 0);
+  
+  if (strncmp(end, "cm", 2) == 0)
+    return (heights[0][0] <= height && height <= heights[0][1]);
+  
+  return (heights[1][0] <= height && height <= heights[1][1]);
 }
 
 
-int
-cond_color(const char *str)
+inline int
+cond_color(const char *str, unsigned int num)
 {
-  return 1; /* for compilation */
+  unsigned int i;
+
+  if (*str != '#' || strlen(str) != num + 1)
+    return 0;
+
+  str++;
+
+  for (i = 0; i < num; ++i)
+    {
+      if (isxdigit(str[i]) == 0)
+        return 0;
+    }
+  
+  return 1;
 }
 
 
-int
-cond_pid(const char *str)
+inline int
+cond_pid(const char *str, unsigned int num)
 {
-  return 1; /* for compilation */
+  unsigned int i;
+
+  if (strlen(str) != num)
+    return 0;
+
+  for (i = 0; i < num; ++i)
+    if (isdigit(str[i]) == 0)
+      return 0;
+  
+  return 1;
 }
