@@ -24,8 +24,10 @@
 #define COLS 8
 #define LINE 10
 
-int find_seat_id(const char *str);
+int compute_pos(int min, int max, char min_char, char **str);
+int find_seat_id(char *str);
 int find_max_seat_id(FILE *file);
+int find_my_seat(FILE *file, int max_id);
 
 int
 main(int argc, char *argv[])
@@ -37,6 +39,11 @@ main(int argc, char *argv[])
 
   num = find_max_seat_id(file);
   printf("Num: %d\n", num);
+
+  fseek(file, 0, SEEK_SET);
+
+  num = find_my_seat(file, num);
+  printf("My seat: %d\n", num);
   
   CLOSE_FILE(file);
   
@@ -44,42 +51,39 @@ main(int argc, char *argv[])
 }
 
 
-int
-find_seat_id(const char *str)
-{  
-  int min_row = 0, max_row = ROWS - 1;
-  int min_col = 0, max_col = COLS - 1;
-
+inline int
+compute_pos(int min, int max, char min_char, char **str)
+{
   int val;
+
+  while (min != max)
+    {
+      val = (max - min) / 2;
+
+      if (**str == min_char)
+        max = min + val;
+      else
+        min = max - val;
+      
+      (*str)++;
+    }
+
+  return min;
+}
+
+
+int
+find_seat_id(char *str)
+{  
+  int row, col;
 
   if (*str == '\0')
     return 0;
   
-  while (min_row != max_row)
-    {
-      val = (max_row - min_row) / 2;
-      
-      if (*str == 'F')
-        max_row = min_row + val;
-      else
-        min_row = max_row - val;
+  row = compute_pos(0, ROWS - 1, 'F', &str);
+  col = compute_pos(0, COLS - 1, 'L', &str);
 
-      str++;
-    }
-
-  while (min_col != max_col)
-    {
-      val = (max_col - min_col) / 2;
-
-      if (*str == 'L')
-        max_col = min_col + val;
-      else
-        min_col = max_col - val;
-
-      str++;
-    }
-
-  return min_row * COLS + min_col;
+  return row * COLS + col;
 }
 
 
@@ -103,4 +107,60 @@ find_max_seat_id(FILE *file)
     }
   
   return max;
+}
+
+
+int compare_int(const void *a, const void *b)
+{
+  int lhs = *(int *) a;
+  int rhs = *(int *) b;
+
+  if (lhs == rhs)
+    return 0;
+  else if (lhs < rhs)
+    return -1;
+  else
+    return 1;
+}
+
+int
+find_my_seat(FILE *file, int max_id)
+{
+  int *tab;
+  char str[LINE + 2];
+  int i;
+
+  tab = (int *) calloc(max_id, sizeof(int));
+  if (tab == NULL)
+    {
+      fprintf(stderr, "Can't allocate enough memory...\n");
+      exit(EXIT_FAILURE);
+    }
+
+  i = 0;
+  while (feof(file) == 0)
+    {
+      fgets(str, SIZE(str), file);
+
+      tab[i] = find_seat_id(str);
+      
+      i++;
+      str[0] = '\0';
+    }
+
+  qsort(tab, max_id, sizeof(int), compare_int);
+
+  for (i = 0; i < max_id - 1; ++i)
+    {
+      if (tab[i] == 0)
+        continue;
+      
+      if (tab[i] != tab[i + 1] && tab[i] + 1 != tab[i + 1])
+        break;
+    }
+
+  i = tab[i];
+  free(tab);
+  
+  return i + 1;
 }
